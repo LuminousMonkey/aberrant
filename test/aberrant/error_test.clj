@@ -1,5 +1,5 @@
-(ns aberrant.error-store-test
-  (:require [aberrant.error-store :as err-str]
+(ns aberrant.error-test
+  (:require [aberrant.error :as err-str]
             [clojure.test :refer :all]))
 
 (deftest hash-testing

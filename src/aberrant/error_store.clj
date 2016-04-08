@@ -1,54 +1,39 @@
 (ns aberrant.error-store
-  (:require [clojure.string :as clj-str])
-  (:import [java.util UUID]))
+  (require [aberrant.error :as ab-error]))
 
-(defprotocol PError
-  (create [this settings] [this settings exception context application-name]))
+(def retry-delay-miliseconds 2000)
 
-(defrecord AberrantError
-    [form-log-filters
-     cookie-log-filters
-     data-include-regex
-     id
-     guid
-     application-name
-     machine-name
-     ex-type
-     source
-     message
-     detail
-     error-hash
-     creation-date
-     status-code])
+;; Default number of exceptions to buffer in memory i the event of an
+;; error store outage.
+(def default-backup-queue-size 1000)
 
-(extend-type
-    AberrantError PError
-    )
+;; The default number of seconds to roll up errors for. Identical
+;; stacktrace errors within 10 minutes get the duplicate count
+;; increased instead of a new exception being logged.
+(def default-rollup-seconds 600)
 
-(defn get-hash
-  "Generate a unique hash so we can have a quick lookup for duplicate
-  errors. Strips out any numbers from the $eval details when hashing."
-  [settings detail machine-name]
-  (if-not (empty? detail)
-    (let [stripped-detail (clj-str/replace detail #"\$eval[\d]+" "")]
-      (if-not (empty? machine-name)
-        (bit-xor (* (.hashCode stripped-detail) 397)
-                 (.hashCode machine-name))))))
+(defprotocol PErrorStore
+  "PErrorStore is how errors are stored."
+  (log-error! [this error]
+             "Logs an error for the application.")
+  (get-error [this guid]
+             "Retrieves a single error based on Id.")
+  (protect-error [this guid]
+                 "Prevents error identified by 'id' from being deleted
+                 when the error log is full, if the store supports
+                 it.")
+  (delete-error! [this guid]
+                "Deletes a specific error from the log.")
+  (delete-all-errors! [this]
+                     "Deletes all non-protected errors form the log.")
+  (get-error-count [this] [this since]
+                   "Returns a count of application errors from all
+                   time, or, if given a date, since that date.")
+  (get-all-errors [this application-name]
+                  "Returns a sequence of all the errors in the error store."))
 
-(defn create-error
-  ([settings]
-   (map->AberrantError {}))
-  ([settings exception context]
-   (let [application-name nil
-         machine-name (.getHostName (java.net.InetAddress/getLocalHost))
-         detail (apply str (interpose "\n" (.getStackTrace exception)))]
-     (map->AberrantError
-      {:guid (UUID/randomUUID)
-       :application-name application-name
-       :machine-name machine-name
-       :ex-type (.getName (.getClass exception))
-       :message (.getMessage exception)
-       :detail detail
-       :creation-date (java.util.Date.)
-       :duplicate-count 1
-       :error-hash (get-hash settings detail machine-name)}))))
+(defn log-exception
+  "Logs an exception to the given error store."
+  [error-store ex context]
+  (let [new-error (ab-error/create-error "" ex context)]
+    (log-error! error-store new-error)))
