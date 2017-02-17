@@ -42,3 +42,11 @@
       (delete-all-errors! error-store)
       (is (= [{:guid "2" :protected true}]
              (get-all-errors error-store ""))))))
+
+(deftest error-counts
+  (testing "Get correct error counts."
+    (let [error-store (in-memory-store)]
+      (log-error! error-store {:guid "1"})
+      (log-error! error-store {:guid "2"})
+      (log-error! error-store {:guid "3"})
+      (is (= 3 (get-error-count error-store))))))
