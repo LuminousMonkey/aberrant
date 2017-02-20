@@ -12,7 +12,10 @@
         (bit-xor (* (.hashCode stripped-detail) 397)
                  (.hashCode machine-name))))))
 
+;; Web application focus, so context is intended to be the HTTP
+;; context. (The request/response in Ring?)
 (defn create-error
+  "Create a hash-map that represents an error."
   [settings exception context]
   (let [application-name nil
         machine-name (.getHostName (java.net.InetAddress/getLocalHost))
@@ -25,4 +28,5 @@
      :detail detail
      :creation-date (java.util.Date.)
      :duplicate-count 1
-     :error-hash (get-hash settings detail machine-name)}))
+     :error-hash (get-hash settings detail machine-name)
+     :context context}))
